@@ -8,5 +8,65 @@ execute:
 
 ```{r}
 #| message: false
+library(dplyr)
+library(worldmet)
+library(tidyverse)
+library(lubridate)
 
+```
+
+```{r}
+#| message: false
+library(tidyverse)
+
+x <- read_rds("boston.rds")
+```
+
+
+```{r}
+boston_daily <- x %>%
+  # Convert temperature from Celsius to Fahrenheit (assuming it's in Celsius)
+  mutate(temp_f = air_temp * 9/5 + 32) %>%
+  
+  # Extract just the date (remove time component)
+  mutate(date_only = as.Date(date)) %>%
+  
+  # Remove rows with missing temperature data
+  filter(!is.na(temp_f)) %>%
+  
+  # Group by date and calculate daily maximum temperature
+  group_by(date_only) %>%
+  summarise(
+    max_temp_f = max(temp_f, na.rm = TRUE),
+    n_observations = n(),
+    .groups = 'drop'
+  ) %>%
+  
+  # Filter out days with very few observations (data quality check)
+  filter(n_observations >= 12) %>%  # At least 12 hourly observations per day
+  
+  # Remove any infinite values
+  filter(is.finite(max_temp_f))
+```
+
+
+```{r}
+boston_daily %>%
+  filter(year(date_only) >= 1975 & year(date_only) <= 2025) %>%
+  mutate(
+    year = year(date_only),
+    day_of_year = yday(date_only)
+  ) %>%
+  ggplot(aes(x = day_of_year, y = max_temp_f)) +
+  geom_point(alpha = 0.6, size = 0.5, color = "gray40") +
+  labs(
+    title = "Daily maximum temperatures in Boston, 1975-2025",
+    x = NULL,
+    y = "Temperature"
+  ) +
+  scale_x_continuous(breaks = c(1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335),
+                     labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+                               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")) +
+  scale_y_continuous(limits = c(0, 120)) +
+  theme_minimal()
 ```
